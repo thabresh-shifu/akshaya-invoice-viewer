@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!--
+  Standalone "view invoice" page the salesman app's invoice PDF QR points to
+  (see lib/printing/invoice_viewer_config.dart). Deploy this one file as-is
+  to any free static host -- GitHub Pages, Cloudflare Pages, Vercel, Netlify
+  all work -- then update invoiceViewerBaseUrl in that Dart file to wherever
+  it ends up (e.g. https://<you>.github.io/invoice.html).
+
+  Deliberately a single dependency-free HTML file, not a build step or a
+  storage upload: it reads the order fresh from Supabase (via the
+  get-invoice Edge Function) every time it's opened, so it always shows the
+  current invoice with zero ongoing storage/hosting cost.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Invoice</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 16px; background: #f4f2f8; color: #221830; }
+  .card { max-width: 720px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .muted { color: #6b6478; font-size: 12.5px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #eee; }
+  th { color: #6b6478; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  .totals { margin-top: 14px; text-align: right; font-size: 13px; }
+  .totals .grand { font-size: 16px; font-weight: 800; color: #5A3A80; }
+  .state { text-align: center; padding: 40px 16px; color: #6b6478; }
+  button { margin-top: 16px; background: #5A3A80; color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; cursor: pointer; }
+  @media print { button { display: none; } }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="state" id="state">Loading invoice…</div>
+  </div>
+
+<script>
+  // Same project the app talks to -- lib/sync/supabase_config.dart. The
+  // publishable/anon key is meant to be public; it carries no access beyond
+  // what RLS allows, and this page's Edge Function call doesn't rely on RLS
+  // at all (see supabase/functions/get-invoice/index.ts).
+  const SUPABASE_URL = 'https://cqrdljydjmajslfhcjqu.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_lBhiS7UOlkiXWb3rpgjtZA_EJJykqED';
+
+  const money = (v) => Number(v || 0).toFixed(2);
+
+  async function load() {
+    const orderId = new URLSearchParams(location.search).get('order');
+    const state = document.getElementById('state');
+    if (!orderId) {
+      state.textContent = 'No invoice specified.';
+      return;
+    }
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/get-invoice?order_id=${encodeURIComponent(orderId)}`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        state.textContent = data.error || 'Could not load this invoice.';
+        return;
+      }
+      render(data);
+    } catch (e) {
+      state.textContent = 'Could not load this invoice. Check your connection and try again.';
+    }
+  }
+
+  function render(data) {
+    const { order, customer, salesman, lines } = data;
+    const billNo = `ORD-${order.id.slice(0, 6).toUpperCase()}`;
+    const rows = lines.map((l) => `
+      <tr>
+        <td>${l.productName}</td>
+        <td class="num">${Number(l.qty)} ${l.unit || ''}</td>
+        <td class="num">${money(l.sale_price)}</td>
+        <td class="num">${l.gst_pct ?? 0}%</td>
+        <td class="num">${money(l.line_amount)}</td>
+      </tr>`).join('');
+
+    document.getElementById('card').innerHTML = `
+      <h1>Tax Invoice ${billNo}</h1>
+      <div class="muted">${order.date} · ${customer?.name ?? ''}${customer?.place ? ' · ' + customer.place : ''}</div>
+      <div class="muted">${salesman?.name ? 'Salesman: ' + salesman.name : ''}</div>
+      <table>
+        <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">GST</th><th class="num">Amount</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="totals">
+        <div class="grand">Net Amount ₹${money(order.netAmount)}</div>
+      </div>
+      <button onclick="window.print()">Print / Save as PDF</button>
+    `;
+  }
+
+  load();
+</script>
+</body>
+</html>
