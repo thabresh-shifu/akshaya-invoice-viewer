@@ -37,11 +37,16 @@
   .bill .line { font-size: 11px; color: #6b6478; }
   hr { border: none; border-top: 1px solid #e4e0ec; margin: 12px 0; }
   .meta-row { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 10px; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th, td { text-align: left; padding: 5px 4px; border-bottom: 1px solid #eee; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; background: #fff; }
+  th, td { text-align: left; padding: 5px 4px; border-bottom: 1px solid #eee; white-space: nowrap; }
   th { color: #6b6478; font-weight: 700; font-size: 9.5px; text-transform: uppercase; background: #f7f5fa; }
   td.num, th.num { text-align: right; }
-  .items { margin-top: 14px; }
+  /* The 11-column item table is wider than the card on narrow screens --
+     without this, the overflow past the card's right edge shows the
+     page's lavender background instead of white. Scrolling (not
+     shrinking) keeps every column legible instead of squeezing them. */
+  .items { margin-top: 14px; overflow-x: auto; background: #fff; }
+  .items table { min-width: 720px; }
   .bottom { display: flex; gap: 14px; margin-top: 16px; flex-wrap: wrap; align-items: flex-start; }
   .gst-box { flex: 1 1 260px; }
   .gst-box table th, .gst-box table td { font-size: 10.5px; }
